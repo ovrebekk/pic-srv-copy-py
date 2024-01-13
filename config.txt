@@ -1,0 +1,2 @@
+source_folder: E:\bilder\fotografi\2003
+target_folder: C:\bilder\srv_test
