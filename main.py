@@ -128,7 +128,19 @@ class CmdFile:
                 lineValue = cmdLine.split(':', 1)[1].strip()
                 #print('kw ' + lineKeyword + ', val ' + lineValue)
 
-                if lineKeyword == CmdFileKeywords.FORCE_UPDATE:
+                if lineKeyword == CmdFileKeywords.CATEGORY:
+                    try:
+                        AlbumCategories(lineValue)
+                    except:
+                        self.category = AlbumCategories.INVALID
+                    else:
+                        self.category = AlbumCategories(lineValue)
+                        self.requirementMet += 1
+                # The relative location of the album to the server gallery root folder
+                elif lineKeyword == CmdFileKeywords.ALBUM_NAME and lineValue != "":
+                    self.albumName = lineValue
+                    self.requirementMet += 1
+                elif lineKeyword == CmdFileKeywords.FORCE_UPDATE:
                     if int(lineValue) > 0:
                         self.forceUpdate = True
                     else:
@@ -160,18 +172,9 @@ class CmdFile:
                 # The number of times the file has been updated
                 elif lineKeyword == CmdFileKeywords.TIMES_MODIFIED:
                     self.timesModified = int(lineValue)
-                elif lineKeyword == CmdFileKeywords.CATEGORY:
-                    try:
-                        AlbumCategories(lineValue)
-                    except:
-                        self.category = AlbumCategories.INVALID
-                    else:
-                        self.category = AlbumCategories(lineValue)
-                        self.requirementMet += 1
-                # The relative location of the album to the server gallery root folder
-                elif lineKeyword == CmdFileKeywords.ALBUM_NAME and lineValue != "":
-                    self.albumName = lineValue
-                    self.requirementMet += 1
+                elif lineKeyword == CmdFileKeywords.TARGET_COPY_FOLDER:
+                    self.targetFolderOnLastCopy = lineValue
+
     
     def writeToFile(self, filePath):
         outFile = open(filePath, 'w')
@@ -258,8 +261,9 @@ def processCommandDirectory(path, dummyRun):
                     print('Copypath: ' + copyToPath)
 
                     # Store the relative target folder to the command file for future reference
-                    cmdFile.targetFolderOnLastCopy = os.sep.join(pathPieces)
-                    cmdFile.writeToFile(cmdFilePath)
+                    if cmdFile.targetFolderOnLastCopy != os.sep.join(pathPieces):
+                        cmdFile.targetFolderOnLastCopy = os.sep.join(pathPieces)
+                        cmdFile.writeToFile(cmdFilePath)
                     
                     # Check if the target folder exists, create it otherwise
                     if os.path.exists(copyToPath):
