@@ -259,10 +259,14 @@ def processCommandDirectory(path, dummyRun):
                     for file in files:
                         fileExtension = os.path.splitext(file)[1].lower()
                         fileToCopy = root + os.sep + file
-                        if fileExtension == ".jpg":
-                            logFileCopy(fileToCopy)
-                            #print('copy ' + fileToCopy + ' to ' + copyToPath)
-                            shutil.copy2(fileToCopy, copyToPath)
+                        if fileExtension == ".jpg":  
+                            if os.path.isfile(copyToPath + os.sep + file):
+                                #print('File ' + fileToCopy + ' exists. Skipping..')
+                                logFileCopy('Exists... Skipping: ' + file)
+                            else:
+                                shutil.copy2(fileToCopy, copyToPath)
+                                #print('copy ' + fileToCopy + ' to ' + copyToPath)
+                                logFileCopy(fileToCopy)
             
             else:
                 for file in files:
