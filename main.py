@@ -43,13 +43,14 @@ class AlbumCategories(str, Enum):
             return ''
 
 class CmdFileKeywords(str, Enum):
+    CATEGORY = 'category'
+    ALBUM_NAME = 'album'
     FORCE_UPDATE = 'force_update'
     CMD_FILE_TIME = 'file_time'
     ROOT_DIR_TIME = 'dir_time'
     CREATION_DATE = 'creation_date'
     TIMES_MODIFIED = 'times_modified'
-    CATEGORY = 'category'
-    ALBUM_NAME = 'album'
+    TARGET_COPY_FOLDER = 'target_copy_folder'
 
 # Settings
 folderTarget = ""
@@ -115,6 +116,7 @@ class CmdFile:
     dtDirTime = datetime.now()
     albumName = ""
     category = AlbumCategories.INVALID
+    targetFolderOnLastCopy = ""
     requirementMet = 0
 
     def readFromFile(self, filePath):
@@ -172,14 +174,19 @@ class CmdFile:
                     self.requirementMet += 1
     
     def writeToFile(self, filePath):
-        cmdFile = open(filePath, 'w')
-        cmdFile.write(CmdFileKeywords.FORCE_UPDATE + cmdFileSep + '0\n')
-        cmdFile.write(CmdFileKeywords.CMD_FILE_TIME + cmdFileSep + self.dtFileTime.strftime(dateStringFormat) + '\n')
-        cmdFile.write(CmdFileKeywords.ROOT_DIR_TIME + cmdFileSep + self.dtDirTime.strftime(dateStringFormat) + '\n')
-        cmdFile.write(CmdFileKeywords.CREATION_DATE + cmdFileSep + self.dtCreationDate.strftime(dateOnlyFormat) + '\n')
-        cmdFile.write(CmdFileKeywords.TIMES_MODIFIED + cmdFileSep + str(self.timesModified) + '\n')
-        cmdFile.write(CmdFileKeywords.CATEGORY + cmdFileSep + self.category + '\n')
-        cmdFile.write(CmdFileKeywords.ALBUM_NAME + cmdFileSep + self.albumName + '\n')
+        outFile = open(filePath, 'w')
+        outFile.write('------ User parameters ------\n\n')
+        outFile.write(CmdFileKeywords.CATEGORY + cmdFileSep + self.category + '\n')
+        outFile.write(CmdFileKeywords.ALBUM_NAME + cmdFileSep + self.albumName + '\n')
+        outFile.write(CmdFileKeywords.FORCE_UPDATE + cmdFileSep + '0\n')
+        
+        outFile.write('\n------ Generated parameters ------\n\n')
+        outFile.write(CmdFileKeywords.CMD_FILE_TIME + cmdFileSep + datetime.now().strftime(dateStringFormat) + '\n')
+        outFile.write(CmdFileKeywords.ROOT_DIR_TIME + cmdFileSep + self.dtDirTime.strftime(dateStringFormat) + '\n')
+        outFile.write(CmdFileKeywords.CREATION_DATE + cmdFileSep + self.dtCreationDate.strftime(dateOnlyFormat) + '\n')
+        outFile.write(CmdFileKeywords.TIMES_MODIFIED + cmdFileSep + str(self.timesModified) + '\n')
+        if self.targetFolderOnLastCopy != "":
+            outFile.write(CmdFileKeywords.TARGET_COPY_FOLDER + cmdFileSep + self.targetFolderOnLastCopy + '\n')
 
     def getDayString(self):
         dayString = datetime.strftime(self.dtCreationDate, "%A ")
@@ -217,7 +224,6 @@ def processCommandDirectory(path, dummyRun):
     if not dummyRun:
         # Since a file update was needed, update the file data and write it back
         cmdFile.timesModified += 1
-        cmdFile.dtFileTime = datetime.now()
         cmdFile.dtDirTime = dt
         if cmdFile.dtCreationDate == datetime.min:
             # Try to read the creation date of this image folder from the folder name
@@ -250,6 +256,11 @@ def processCommandDirectory(path, dummyRun):
                     
                     copyToPath = folderTarget + os.sep + os.sep.join(pathPieces) + os.sep
                     print('Copypath: ' + copyToPath)
+
+                    # Store the relative target folder to the command file for future reference
+                    cmdFile.targetFolderOnLastCopy = os.sep.join(pathPieces)
+                    cmdFile.writeToFile(cmdFilePath)
+                    
                     # Check if the target folder exists, create it otherwise
                     if os.path.exists(copyToPath):
                         print('Folder exists! TODO: Delete existing images?')
