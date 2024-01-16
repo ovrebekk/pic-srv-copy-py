@@ -82,10 +82,10 @@ def parseConfigFile():
 
 def verifyConfigParameters():
     if folderSource == "" or not os.path.isdir(folderSource):
-        print('Source folder invalid!')
+        print('Source folder invalid: ' + folderSource)
         return False
     if folderTarget == "" or not os.path.isdir(folderTarget):
-        print('Target folder invalid!')
+        print('Target folder invalid: ' + folderTarget)
         return False
     return True 
 
