@@ -13,19 +13,48 @@ keywordTarget = 'target_folder'
 # Command file definitions
 commandFileName = '_psc.txt'
 dateStringFormat = '%Y/%m/%d, %H:%M:%S'
+dateOnlyFormat = '%Y/%m/%d'
 cmdFileSep = ': '
+dayPostFix = ['th','st','nd','rd','th','th','th','th','th','th']
+
+class AlbumCategories(str, Enum):
+    TRAVEL = 'travel'
+    EVENT = 'event'
+    HOME = 'home'
+    UGLER = 'ugler'
+    NORDIC = 'nordic'
+    MISC = 'misc'
+    INVALID = ''
+
+    def getFolderName(self):
+        if self == AlbumCategories.TRAVEL:
+            return 'Travel/%Y/'
+        elif self == AlbumCategories.EVENT:
+            return 'Events/%Y/'
+        elif self == AlbumCategories.HOME:
+            return 'Home/%Y/'
+        elif self == AlbumCategories.NORDIC:
+            return 'Nordic/%Y - '
+        elif self == AlbumCategories.UGLER:
+            return 'Ugler/%Y/'
+        elif self == AlbumCategories.MISC:
+            return 'Misc/%Y/'
+        else:
+            return ''
 
 class CmdFileKeywords(str, Enum):
     FORCE_UPDATE = 'force_update'
     CMD_FILE_TIME = 'file_time'
     ROOT_DIR_TIME = 'dir_time'
+    CREATION_DATE = 'creation_date'
     TIMES_MODIFIED = 'times_modified'
-    ALBUM_DIRECTORIES = 'album'
+    CATEGORY = 'category'
+    ALBUM_NAME = 'album'
 
 # Settings
 folderTarget = ""
 folderSource = ""
-forceUpdateAll = True
+forceUpdateAll = False
 
 def makeEmptyConfigFile():
     print('Creating template config file. Enter configuration data and rerun script.')
@@ -81,9 +110,12 @@ class CmdFile:
     timeUpdateDir = ""
     timeUpdateCmdFile = ""
     timesModified = 0
+    dtCreationDate = datetime.min
     dtFileTime = datetime.now()
     dtDirTime = datetime.now()
-    albumDir = ""
+    albumName = ""
+    category = AlbumCategories.INVALID
+    requirementMet = 0
 
     def readFromFile(self, filePath):
         cmdFile = open(filePath, 'r')
@@ -101,29 +133,71 @@ class CmdFile:
                         self.forceUpdate = False
                 # File update time stamp when last updated
                 elif lineKeyword == CmdFileKeywords.CMD_FILE_TIME:
-                    self.dtFileTime = datetime.strptime(lineValue, dateStringFormat)
+                    try:
+                        self.dtFileTime = datetime.strptime(lineValue, dateStringFormat)
+                    except:
+                        self.dtFileTime = datetime.now()
+                    else:
+                        self.requirementMet += 1
                 # Root directory time stamp when last updated
                 elif lineKeyword == CmdFileKeywords.ROOT_DIR_TIME:
-                    self.dtDirTime = datetime.strptime(lineValue, dateStringFormat)
+                    try:
+                        self.dtDirTime = datetime.strptime(lineValue, dateStringFormat)
+                    except:
+                        self.dtDirTime = datetime.now()
+                    else:
+                        self.requirementMet += 1
+                # Creation date of the images in the folder
+                elif lineKeyword == CmdFileKeywords.CREATION_DATE:
+                    try:
+                        self.dtCreationDate = datetime.strptime(lineValue, dateOnlyFormat)
+                    except:
+                        self.dtCreationDate = datetime.min
+                    else:
+                        self.requirementMet += 1
                 # The number of times the file has been updated
                 elif lineKeyword == CmdFileKeywords.TIMES_MODIFIED:
                     self.timesModified = int(lineValue)
+                elif lineKeyword == CmdFileKeywords.CATEGORY:
+                    try:
+                        AlbumCategories(lineValue)
+                    except:
+                        self.category = AlbumCategories.INVALID
+                    else:
+                        self.category = AlbumCategories(lineValue)
+                        self.requirementMet += 1
                 # The relative location of the album to the server gallery root folder
-                elif lineKeyword == CmdFileKeywords.ALBUM_DIRECTORIES:
-                    self.albumDir = lineValue
+                elif lineKeyword == CmdFileKeywords.ALBUM_NAME and lineValue != "":
+                    self.albumName = lineValue
+                    self.requirementMet += 1
     
     def writeToFile(self, filePath):
         cmdFile = open(filePath, 'w')
         cmdFile.write(CmdFileKeywords.FORCE_UPDATE + cmdFileSep + '0\n')
         cmdFile.write(CmdFileKeywords.CMD_FILE_TIME + cmdFileSep + self.dtFileTime.strftime(dateStringFormat) + '\n')
         cmdFile.write(CmdFileKeywords.ROOT_DIR_TIME + cmdFileSep + self.dtDirTime.strftime(dateStringFormat) + '\n')
+        cmdFile.write(CmdFileKeywords.CREATION_DATE + cmdFileSep + self.dtCreationDate.strftime(dateOnlyFormat) + '\n')
         cmdFile.write(CmdFileKeywords.TIMES_MODIFIED + cmdFileSep + str(self.timesModified) + '\n')
-        cmdFile.write(CmdFileKeywords.ALBUM_DIRECTORIES + cmdFileSep + self.albumDir + '\n')
+        cmdFile.write(CmdFileKeywords.CATEGORY + cmdFileSep + self.category + '\n')
+        cmdFile.write(CmdFileKeywords.ALBUM_NAME + cmdFileSep + self.albumName + '\n')
+
+    def getDayString(self):
+        dayString = datetime.strftime(self.dtCreationDate, "%A ")
+        dayString += str(self.dtCreationDate.day)
+        dayString += dayPostFix[self.dtCreationDate.day % 10]
+        dayString += datetime.strftime(self.dtCreationDate, " %B")
+        return dayString
 
     def updateNeeded(self, dtCmdFile, dtRootDir):
         if dtCmdFile != self.dtFileTime or dtRootDir != self.dtDirTime or self.forceUpdate:
             return True
         else:
+            return False
+    
+    def contentValid(self):
+        if self.requirementMet == 5 and self.category != AlbumCategories.INVALID:
+            return True
+        else: 
             return False
 
 def processCommandFile(path):
@@ -145,23 +219,59 @@ def processCommandDirectory(path, dummyRun):
         cmdFile.timesModified += 1
         cmdFile.dtFileTime = datetime.now()
         cmdFile.dtDirTime = dt
+        if cmdFile.dtCreationDate == datetime.min:
+            # Try to read the creation date of this image folder from the folder name
+            splitPath = path.split(os.sep)
+            topFolder = splitPath[len(splitPath) - 1]
+            try:
+                cmdFile.dtCreationDate = datetime.strptime(topFolder[:8], "%y_%m_%d")
+            except:
+                print('Failed to convert folder name to date!')
         cmdFile.writeToFile(cmdFilePath)
         print('File updated: ' + cmdFilePath)
 
-    # Traverse the files in the folder and perform the copy
-    for root, dirs, files in os.walk(path):
-        for file in files:
-            fileExtension = os.path.splitext(file)[1].lower()
-            fileToCopy = root + os.sep + file
-            if fileExtension == ".jpg":
-                filesFound += 1
-                if not dummyRun:
-                    logFileCopy(fileToCopy)
-                    time.sleep(0.06)
-                #print('Copying ' + fileToCopy + ' to ')
-                #if not dummyRun:
-                    #shutil.copy2(fileToCopy, folderTarget)
-    print('Total files: ' + str(filesFound) + ' (' + path + ')')
+    if cmdFile.contentValid():
+        # Traverse the files in the folder and perform the copy
+        for root, dirs, files in os.walk(path):
+            if not dummyRun:
+                if root == path: # TODO: Add functionality to also go through subfolders
+                    copyToPath = cmdFile.category.getFolderName() + cmdFile.albumName
+
+                    # Search for datetime markers in the folder names and replace accordingly
+                    pathPieces = copyToPath.split('/')
+                    for i in range(0,len(pathPieces)):
+                        if pathPieces[i].find('%DAY') >= 0:
+                            pathPieces[i] = pathPieces[i].replace('%DAY', cmdFile.getDayString())
+                        if pathPieces[i].find('%') >= 0:
+                            try:
+                                pathPieces[i] = datetime.strftime(cmdFile.dtCreationDate, pathPieces[i])
+                            except:
+                                print('Error converting folder name to datetime string')
+                    
+                    copyToPath = folderTarget + os.sep + os.sep.join(pathPieces) + os.sep
+                    print('Copypath: ' + copyToPath)
+                    # Check if the target folder exists, create it otherwise
+                    if os.path.exists(copyToPath):
+                        print('Folder exists! TODO: Delete existing images?')
+                    else:
+                        os.makedirs(copyToPath)
+                    # Copy all the correct files to the selected target directory
+                    for file in files:
+                        fileExtension = os.path.splitext(file)[1].lower()
+                        fileToCopy = root + os.sep + file
+                        if fileExtension == ".jpg":
+                            logFileCopy(fileToCopy)
+                            #print('copy ' + fileToCopy + ' to ' + copyToPath)
+                            shutil.copy2(fileToCopy, copyToPath)
+            
+            else:
+                for file in files:
+                    fileExtension = os.path.splitext(file)[1].lower()
+                    fileToCopy = root + os.sep + file
+                    if fileExtension == ".jpg":
+                        filesFound += 1
+
+        print('Total files: ' + str(filesFound) + ' (' + path + ')')
 
     return filesFound
 
@@ -188,6 +298,8 @@ for root, dirs, files in os.walk(folderSource):
         totalFileCounter += processCommandDirectory(root, True)
     
 print('Dummy run complete: ' + str(totalFileCounter) + ' files found.')
+
+#input("Press Enter to continue...")
 
 logPicIndex = 0
 logPicTotal = totalFileCounter
