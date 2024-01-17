@@ -138,7 +138,7 @@ class CmdFile:
                         self.requirementMet += 1
                 # The relative location of the album to the server gallery root folder
                 elif lineKeyword == CmdFileKeywords.ALBUM_NAME and lineValue != "":
-                    self.albumName = lineValue
+                    self.albumName = lineValue.replace(' ','_')
                     self.requirementMet += 1
                 elif lineKeyword == CmdFileKeywords.FORCE_UPDATE:
                     if int(lineValue) > 0:
@@ -280,7 +280,9 @@ def processCommandDirectory(path, dummyRun):
                                 startTime = time.time()
                                 shutil.copy2(fileToCopy, copyToPath)
                                 elapsedTime = time.time() - startTime
-                                speedMbps = float(fileSize) * 8 / 1024 / 1024 / elapsedTime
+                                speedMbps = 0
+                                if elapsedTime > 0:
+                                    speedMbps = float(fileSize) * 8 / 1024 / 1024 / elapsedTime
                                 print(fileToCopy + ' copied in ' + str(int(elapsedTime*1000)) + ' ms, speed ' + str(int(speedMbps)) + ' Mbps')
                                 #logFileCopy(fileToCopy)
             
