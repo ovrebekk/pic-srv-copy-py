@@ -186,10 +186,10 @@ class CmdFile:
             outFile.write(CmdFileKeywords.TARGET_COPY_FOLDER + cmdFileSep + self.targetFolderOnLastCopy + '\n')
 
     def getDayString(self):
-        dayString = datetime.strftime(self.dtCreationDate, "%A ")
+        dayString = datetime.strftime(self.dtCreationDate, "%a ")
         dayString += str(self.dtCreationDate.day)
         dayString += dayPostFix[self.dtCreationDate.day % 10]
-        dayString += datetime.strftime(self.dtCreationDate, " %B")
+        dayString += datetime.strftime(self.dtCreationDate, " %b")
         return dayString
 
     def updateNeeded(self, dtCmdFile, dtRootDir):
