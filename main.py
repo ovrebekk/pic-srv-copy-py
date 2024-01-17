@@ -150,25 +150,19 @@ class CmdFile:
                     try:
                         self.dtFileTime = datetime.strptime(lineValue, dateStringFormat)
                     except:
-                        self.dtFileTime = datetime.now()
-                    else:
-                        self.requirementMet += 1
+                        self.dtFileTime = datetime.min
                 # Root directory time stamp when last updated
                 elif lineKeyword == CmdFileKeywords.ROOT_DIR_TIME:
                     try:
                         self.dtDirTime = datetime.strptime(lineValue, dateStringFormat)
                     except:
-                        self.dtDirTime = datetime.now()
-                    else:
-                        self.requirementMet += 1
+                        self.dtDirTime = datetime.min
                 # Creation date of the images in the folder
                 elif lineKeyword == CmdFileKeywords.CREATION_DATE:
                     try:
                         self.dtCreationDate = datetime.strptime(lineValue, dateOnlyFormat)
                     except:
                         self.dtCreationDate = datetime.min
-                    else:
-                        self.requirementMet += 1
                 # The number of times the file has been updated
                 elif lineKeyword == CmdFileKeywords.TIMES_MODIFIED:
                     self.timesModified = int(lineValue)
@@ -205,7 +199,7 @@ class CmdFile:
             return False
     
     def contentValid(self):
-        if self.requirementMet == 5 and self.category != AlbumCategories.INVALID:
+        if self.requirementMet == 2 and self.category != AlbumCategories.INVALID and self.dtCreationDate != datetime.min:
             return True
         else: 
             return False
@@ -276,12 +270,16 @@ def processCommandDirectory(path, dummyRun):
                         fileToCopy = root + os.sep + file
                         if fileExtension == ".jpg":  
                             if os.path.isfile(copyToPath + os.sep + file):
-                                #print('File ' + fileToCopy + ' exists. Skipping..')
-                                logFileCopy('Exists... Skipping: ' + file)
+                                print('File ' + fileToCopy + ' exists. Skipping..')
+                                #logFileCopy('Exists... Skipping: ' + file)
                             else:
+                                fileSize = os.path.getsize(fileToCopy)
+                                startTime = time.time()
                                 shutil.copy2(fileToCopy, copyToPath)
-                                #print('copy ' + fileToCopy + ' to ' + copyToPath)
-                                logFileCopy(fileToCopy)
+                                elapsedTime = time.time() - startTime
+                                speedMbps = float(fileSize) * 8 / 1024 / 1024 / elapsedTime
+                                print(fileToCopy + ' copied in ' + str(int(elapsedTime*1000)) + ' ms, speed ' + str(int(speedMbps)) + ' Mbps')
+                                #logFileCopy(fileToCopy)
             
             else:
                 for file in files:
@@ -318,7 +316,7 @@ for root, dirs, files in os.walk(folderSource):
     
 print('Dummy run complete: ' + str(totalFileCounter) + ' files found.')
 
-#input("Press Enter to continue...")
+input("Press Enter to continue...")
 
 logPicIndex = 0
 logPicTotal = totalFileCounter
@@ -329,8 +327,6 @@ for root, dirs, files in os.walk(folderSource):
     cmdPathName = root + os.sep + commandFileName
     if os.path.isfile(cmdPathName):
         processCommandDirectory(root, False)
-    #path = root.split(os.sep)
-    #print((len(path) - 1) * '---', os.path.basename(root))
-    #for file in files:
-    #    print(len(path) * '---', file)
+
+print("Script finished!")
         
