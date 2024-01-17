@@ -188,7 +188,10 @@ class CmdFile:
     def getDayString(self):
         dayString = datetime.strftime(self.dtCreationDate, "%a ")
         dayString += str(self.dtCreationDate.day)
-        dayString += dayPostFix[self.dtCreationDate.day % 10]
+        if self.dtCreationDate.day >= 10 and self.dtCreationDate.day <= 20:
+            dayString += dayPostFix[9]
+        else:
+            dayString += dayPostFix[self.dtCreationDate.day % 10]
         dayString += datetime.strftime(self.dtCreationDate, " %b")
         return dayString
 
