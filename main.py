@@ -100,6 +100,8 @@ class CmdFile:
     albumName = ""
     category = AlbumCategories.INVALID
     targetFolderOnLastCopy = ""
+    rootFolder = ""
+    numFilesToCopy = 0
     requirementMet = 0
 
     def readFromFile(self, filePath):
@@ -180,11 +182,11 @@ class CmdFile:
 
     def updateNeeded(self, dtCmdFile, dtRootDir):
         if dtCmdFile != self.dtFileTime or dtRootDir != self.dtDirTime:
-            print('Update needed file time ' + dtCmdFile.strftime("%m/%d/%Y, %H:%M:%S") + ' ' + self.dtFileTime.strftime("%m/%d/%Y, %H:%M:%S"))
-            print('Dir time ' + dtRootDir.strftime("%m/%d/%Y, %H:%M:%S") + ' ' + self.dtDirTime.strftime("%m/%d/%Y, %H:%M:%S"))
+            #print('Update needed file time ' + dtCmdFile.strftime("%m/%d/%Y, %H:%M:%S") + ' ' + self.dtFileTime.strftime("%m/%d/%Y, %H:%M:%S"))
+            #print('Dir time ' + dtRootDir.strftime("%m/%d/%Y, %H:%M:%S") + ' ' + self.dtDirTime.strftime("%m/%d/%Y, %H:%M:%S"))
             return True
         if self.forceUpdate:
-            print('Update needed forceupdate')
+            #print('Update needed forceupdate')
             return True
         else:
             return False
@@ -198,81 +200,94 @@ class CmdFile:
 def processCommandFile(path):
     print(path)
 
-def processCommandDirectory(path, dummyRun):
+def checkCommandDirectory(path):
     filesFound = 0
     cmdFilePath = path + os.sep + commandFileName
     dt = datetime.fromtimestamp(os.path.getmtime(path)) # Time stamp of the root folder
     dtf = datetime.fromtimestamp(os.path.getmtime(cmdFilePath)) # Time stamp of the config file
     cmdFile = CmdFile()
     cmdFile.readFromFile(cmdFilePath)
-
-    if not cmdFile.updateNeeded(dtf.replace(microsecond=0), dt.replace(microsecond=0)) and not forceUpdateAll:
-        return 0
-    
-    if not dummyRun:
-        # Since a file update was needed, update the file data and write it back
-        cmdFile.timesModified += 1
-        cmdFile.dtDirTime = dt
-        if cmdFile.dtCreationDate == datetime.min:
-            # Try to read the creation date of this image folder from the folder name
-            splitPath = path.split(os.sep)
-            topFolder = splitPath[len(splitPath) - 1]
-            try:
-                cmdFile.dtCreationDate = datetime.strptime(topFolder[:8], "%y_%m_%d")
-            except:
-                print('Failed to convert folder name to date!')
-        cmdFile.writeToFile(cmdFilePath)
-        print('File updated: ' + cmdFilePath)
-
-    if cmdFile.contentValid():
-        # Traverse the files in the folder and perform the copy
+    if cmdFile.updateNeeded(dtf.replace(microsecond=0), dt.replace(microsecond=0)) or forceUpdateAll:
         for root, dirs, files in os.walk(path):
-            if not dummyRun:
-                if root == path: # TODO: Add functionality to also go through subfolders
-                    copyToPath = cmdFile.category.getFolderName() + cmdFile.albumName
+            if root == path: # TODO: Add functionality to also go through subfolders
+                # Count all the JPG files
+                for file in files:
+                    fileExtension = os.path.splitext(file)[1].lower()
+                    fileToCopy = root + os.sep + file
+                    if fileExtension == ".jpg": 
+                        filesFound += 1
+        cmdFile.rootFolder = path
+        cmdFile.numFilesToCopy = filesFound
+        return cmdFile
+    else:
+        return None
 
-                    # Search for datetime markers in the folder names and replace accordingly
-                    pathPieces = copyToPath.split('/')
-                    for i in range(0,len(pathPieces)):
-                        if pathPieces[i].find('%DAY') >= 0:
-                            pathPieces[i] = pathPieces[i].replace('%DAY', cmdFile.getDayString())
-                        if pathPieces[i].find('%') >= 0:
-                            try:
-                                pathPieces[i] = datetime.strftime(cmdFile.dtCreationDate, pathPieces[i])
-                            except:
-                                print('Error converting folder name to datetime string')
-                    
-                    copyToPath = folderTarget + os.sep + os.sep.join(pathPieces) + os.sep
-                    print('Copypath: ' + copyToPath)
+def processCommandDirectory(cFile):
+    filesFound = 0
+    cmdFilePath = cFile.rootFolder + os.sep + commandFileName
+    dt = datetime.fromtimestamp(os.path.getmtime(cFile.rootFolder)) # Time stamp of the root folder
+    dtf = datetime.fromtimestamp(os.path.getmtime(cmdFilePath)) # Time stamp of the config file
+    
+    # Since a file update was needed, update the file data and write it back
+    cFile.timesModified += 1
+    cFile.dtDirTime = dt
+    if cFile.dtCreationDate == datetime.min:
+        # Try to read the creation date of this image folder from the folder name
+        splitPath = cFile.rootFolder.split(os.sep)
+        topFolder = splitPath[len(splitPath) - 1]
+        try:
+            cFile.dtCreationDate = datetime.strptime(topFolder[:8], "%y_%m_%d")
+        except:
+            print('Failed to convert folder name to date!')
+    cFile.writeToFile(cmdFilePath)
+    print('File updated: ' + cmdFilePath)
 
-                    # Store the relative target folder to the command file for future reference
-                    if cmdFile.targetFolderOnLastCopy != os.sep.join(pathPieces):
-                        cmdFile.targetFolderOnLastCopy = os.sep.join(pathPieces)
-                        cmdFile.writeToFile(cmdFilePath)
-                    
-                    # Check if the target folder exists, create it otherwise
-                    if os.path.exists(copyToPath):
-                        print('Folder exists! TODO: Delete existing images?')
-                    else:
-                        os.makedirs(copyToPath)
-                    # Copy all the correct files to the selected target directory
-                    for file in files:
-                        fileExtension = os.path.splitext(file)[1].lower()
-                        fileToCopy = root + os.sep + file
-                        if fileExtension == ".jpg":  
-                            if os.path.isfile(copyToPath + os.sep + file):
-                                print('File ' + fileToCopy + ' exists. Skipping..')
-                                #logFileCopy('Exists... Skipping: ' + file)
-                            else:
-                                fileSize = os.path.getsize(fileToCopy)
-                                startTime = time.time()
-                                shutil.copy2(fileToCopy, copyToPath)
-                                elapsedTime = time.time() - startTime
-                                speedMbps = 0
-                                if elapsedTime > 0:
-                                    speedMbps = float(fileSize) * 8 / 1024 / 1024 / elapsedTime
-                                print(fileToCopy + ' copied in ' + str(int(elapsedTime*1000)) + ' ms, speed ' + str(int(speedMbps)) + ' Mbps')
-                                #logFileCopy(fileToCopy)
+    if cFile.contentValid():
+        # Traverse the files in the folder and perform the copy
+        for root, dirs, files in os.walk(cFile.rootFolder):
+            if root == cFile.rootFolder: # TODO: Add functionality to also go through subfolders
+                copyToPath = cFile.category.getFolderName() + cFile.albumName
+
+                # Search for datetime markers in the folder names and replace accordingly
+                pathPieces = copyToPath.split('/')
+                for i in range(0,len(pathPieces)):
+                    if pathPieces[i].find('%DAY') >= 0:
+                        pathPieces[i] = pathPieces[i].replace('%DAY', cFile.getDayString())
+                    if pathPieces[i].find('%') >= 0:
+                        try:
+                            pathPieces[i] = datetime.strftime(cFile.dtCreationDate, pathPieces[i])
+                        except:
+                            print('Error converting folder name to datetime string')
+                
+                copyToPath = folderTarget + os.sep + os.sep.join(pathPieces) + os.sep
+                print('Copypath: ' + copyToPath)
+
+                # Store the relative target folder to the command file for future reference
+                if cFile.targetFolderOnLastCopy != os.sep.join(pathPieces):
+                    cFile.targetFolderOnLastCopy = os.sep.join(pathPieces)
+                    cFile.writeToFile(cmdFilePath)
+                
+                # Check if the target folder exists, create it otherwise
+                if os.path.exists(copyToPath):
+                    print('Folder exists! TODO: Delete existing images?')
+                else:
+                    os.makedirs(copyToPath)
+                # Copy all the correct files to the selected target directory
+                for file in files:
+                    fileExtension = os.path.splitext(file)[1].lower()
+                    fileToCopy = root + os.sep + file
+                    if fileExtension == ".jpg":  
+                        if os.path.isfile(copyToPath + os.sep + file):
+                            print('File ' + fileToCopy + ' exists. Skipping..')
+                        else:
+                            fileSize = os.path.getsize(fileToCopy)
+                            startTime = time.time()
+                            shutil.copy2(fileToCopy, copyToPath)
+                            elapsedTime = time.time() - startTime
+                            speedMbps = 0
+                            if elapsedTime > 0:
+                                speedMbps = float(fileSize) * 8 / 1024 / 1024 / elapsedTime
+                            print(fileToCopy + ' copied in ' + str(int(elapsedTime*1000)) + ' ms, speed ' + str(int(speedMbps)) + ' Mbps')
             
             else:
                 for file in files:
@@ -280,8 +295,6 @@ def processCommandDirectory(path, dummyRun):
                     fileToCopy = root + os.sep + file
                     if fileExtension == ".jpg":
                         filesFound += 1
-
-        print('Total files: ' + str(filesFound) + ' (' + path + ')')
 
     return filesFound
 
@@ -299,24 +312,26 @@ if not verifyConfigParameters():
 print('Parsing source directory (' + folderSource + ')...')
 
 totalFileCounter = 0
+cmdFileToProcessList = []
 
 # Traverse root directory, and list directories as dirs and files as files. Dummy run only
 for root, dirs, files in os.walk(folderSource):
     # Check if the current path contains the command file
     cmdPathName = root + os.sep + commandFileName
     if os.path.isfile(cmdPathName):
-        totalFileCounter += processCommandDirectory(root, True)
+        cmdFile = checkCommandDirectory(root)
+        if cmdFile != None:
+            totalFileCounter += cmdFile.numFilesToCopy
+            cmdFileToProcessList.append(cmdFile)
+            print('Found folder: ' + cmdFile.rootFolder)
     
 print('Dummy run complete: ' + str(totalFileCounter) + ' files found.')
 
 input("Press Enter to continue...")
 
-# Traverse root directory, and list directories as dirs and files as files. Perform copy
-for root, dirs, files in os.walk(folderSource):
-    # Check if the current path contains the command file
-    cmdPathName = root + os.sep + commandFileName
-    if os.path.isfile(cmdPathName):
-        processCommandDirectory(root, False)
+# Traverse list of registered command files and execute them one by one
+for cmdFile in cmdFileToProcessList:
+    processCommandDirectory(cmdFile)
 
 print("Script finished!")
         
