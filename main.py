@@ -89,23 +89,6 @@ def verifyConfigParameters():
         return False
     return True 
 
-
-logPicIndex = 0
-logPicTotal = 0
-logLines = ["Header", "", "", "", "", "","","","","","", "Footer"]
-
-def logFileCopy(fileName):
-    global logPicIndex
-    logLines[0] = 'Copying ' + str(logPicTotal) + ' pictures'
-    for i in range(1,10):
-        logLines[i] = logLines[i+1]
-    logLines[10] = fileName
-    logPicIndex += 1
-    logLines[11] = 'Progress: ' + str(logPicIndex) + '/' + str(logPicTotal)
-    for logItem in logLines:
-        print(logItem)
-    print('\n')
-
 class CmdFile:
     forceUpdate = False
     timeUpdateDir = ""
@@ -138,7 +121,7 @@ class CmdFile:
                         self.requirementMet += 1
                 # The relative location of the album to the server gallery root folder
                 elif lineKeyword == CmdFileKeywords.ALBUM_NAME and lineValue != "":
-                    self.albumName = lineValue.replace(' ','_')
+                    self.albumName = lineValue.replace(' ','_').replace('æ','ae').replace('ø','oe').replace('å','aa').replace('Æ','Ae').replace('Ø','Oe').replace('Å','Aa')
                     self.requirementMet += 1
                 elif lineKeyword == CmdFileKeywords.FORCE_UPDATE:
                     if int(lineValue) > 0:
@@ -196,7 +179,12 @@ class CmdFile:
         return dayString
 
     def updateNeeded(self, dtCmdFile, dtRootDir):
-        if dtCmdFile != self.dtFileTime or dtRootDir != self.dtDirTime or self.forceUpdate:
+        if dtCmdFile != self.dtFileTime or dtRootDir != self.dtDirTime:
+            print('Update needed file time ' + dtCmdFile.strftime("%m/%d/%Y, %H:%M:%S") + ' ' + self.dtFileTime.strftime("%m/%d/%Y, %H:%M:%S"))
+            print('Dir time ' + dtRootDir.strftime("%m/%d/%Y, %H:%M:%S") + ' ' + self.dtDirTime.strftime("%m/%d/%Y, %H:%M:%S"))
+            return True
+        if self.forceUpdate:
+            print('Update needed forceupdate')
             return True
         else:
             return False
@@ -322,9 +310,6 @@ for root, dirs, files in os.walk(folderSource):
 print('Dummy run complete: ' + str(totalFileCounter) + ' files found.')
 
 input("Press Enter to continue...")
-
-logPicIndex = 0
-logPicTotal = totalFileCounter
 
 # Traverse root directory, and list directories as dirs and files as files. Perform copy
 for root, dirs, files in os.walk(folderSource):
