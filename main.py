@@ -1,6 +1,7 @@
 import os.path
 import shutil
 import time
+import subprocess
 from enum import Enum
 from datetime import datetime
 from os.path import getmtime
@@ -102,6 +103,7 @@ class CmdFile:
     targetFolderOnLastCopy = ""
     rootFolder = ""
     numFilesToCopy = 0
+    videoList = []
     requirementMet = 0
 
     def readFromFile(self, filePath):
@@ -209,11 +211,14 @@ def checkCommandDirectory(path):
     cmdFile.readFromFile(cmdFilePath)
     if cmdFile.updateNeeded(dtf.replace(microsecond=0), dt.replace(microsecond=0)) or forceUpdateAll:
         for root, dirs, files in os.walk(path):
+            for file in files:
+                fileExtension = os.path.splitext(file)[1].lower()
+                if fileExtension == ".mp4":
+                    cmdFile.videoList.append(root + os.sep + file)   
             if root == path: # TODO: Add functionality to also go through subfolders
                 # Count all the JPG files
                 for file in files:
                     fileExtension = os.path.splitext(file)[1].lower()
-                    fileToCopy = root + os.sep + file
                     if fileExtension == ".jpg": 
                         filesFound += 1
         cmdFile.rootFolder = path
@@ -288,14 +293,23 @@ def processCommandDirectory(cFile):
                             if elapsedTime > 0:
                                 speedMbps = float(fileSize) * 8 / 1024 / 1024 / elapsedTime
                             print(fileToCopy + ' copied in ' + str(int(elapsedTime*1000)) + ' ms, speed ' + str(int(speedMbps)) + ' Mbps')
-            
+                
+                # After all the images have been moved, convert and move all video files
+                for vidFile in cFile.videoList:
+                    targetVid = copyToPath + os.path.splitext(os.path.split(vidFile)[1])[0] + '_r.mp4'
+                    if os.path.isfile(targetVid):
+                        print('Video already exists. Skipping: ' + targetVid)
+                    else:
+                        print('Converting video: ' + vidFile)
+                        subprocess.run(["ffmpeg", "-i", vidFile, "-c:v", "libx264", "-preset","slow","-crf","20","-filter:v","scale=1920:-1","-c:a","copy",targetVid])
+
             else:
                 for file in files:
                     fileExtension = os.path.splitext(file)[1].lower()
                     fileToCopy = root + os.sep + file
                     if fileExtension == ".jpg":
                         filesFound += 1
-
+        
     return filesFound
 
 # Main ---------------------------------------
@@ -324,6 +338,7 @@ for root, dirs, files in os.walk(folderSource):
             totalFileCounter += cmdFile.numFilesToCopy
             cmdFileToProcessList.append(cmdFile)
             print('Found folder: ' + cmdFile.rootFolder)
+            print('Pictures: ' + str(cmdFile.numFilesToCopy) + ', Videos: ' + str(len(cmdFile.videoList)))
     
 print('Dummy run complete: ' + str(totalFileCounter) + ' files found.')
 
