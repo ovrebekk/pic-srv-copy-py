@@ -327,6 +327,7 @@ if not verifyConfigParameters():
 print('Parsing source directory (' + folderSource + ')...')
 
 totalFileCounter = 0
+totalVideoCounter = 0
 cmdFileToProcessList = []
 
 # Traverse root directory, and list directories as dirs and files as files. Dummy run only
@@ -337,11 +338,12 @@ for root, dirs, files in os.walk(folderSource):
         cmdFile = checkCommandDirectory(root)
         if cmdFile != None:
             totalFileCounter += cmdFile.numFilesToCopy
+            totalVideoCounter += len(cmdFile.videoList)
             cmdFileToProcessList.append(cmdFile)
             print('Found folder: ' + cmdFile.rootFolder)
             print('Pictures: ' + str(cmdFile.numFilesToCopy) + ', Videos: ' + str(len(cmdFile.videoList)))
     
-print('Dummy run complete: ' + str(totalFileCounter) + ' files found.')
+print('Folder search complete. Found ' + str(totalFileCounter) + ' new pictures and ' + totalVideoCounter + ' new videos.')
 
 input("Press Enter to continue...")
 
