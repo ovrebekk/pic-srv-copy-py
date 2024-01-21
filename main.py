@@ -304,7 +304,7 @@ def processCommandDirectory(cFile):
                         print('Video already exists. Skipping: ' + targetVid)
                     else:
                         print('Converting video: ' + vidFile)
-                        subprocess.run(["ffmpeg", "-i", vidFile, "-c:v", "libx264", "-preset","slow","-crf","20","-filter:v","scale=1920:-1","-c:a","copy",targetVid])
+                        subprocess.run(["ffmpeg", "-i",vidFile,"-movflags","use_metadata_tags","-map_metadata","0","-c:v", "libx264", "-preset","slow","-crf","20","-filter:v","scale=1920:-1","-c:a","copy",targetVid])
 
             else:
                 for file in files:
