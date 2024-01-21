@@ -99,6 +99,7 @@ class CmdFile:
     dtFileTime = datetime.now()
     dtDirTime = datetime.now()
     albumName = ""
+    albumNameOrig = ""
     category = AlbumCategories.INVALID
     targetFolderOnLastCopy = ""
     rootFolder = ""
@@ -125,6 +126,7 @@ class CmdFile:
                         self.requirementMet += 1
                 # The relative location of the album to the server gallery root folder
                 elif lineKeyword == CmdFileKeywords.ALBUM_NAME and lineValue != "":
+                    self.albumNameOrig = lineValue
                     self.albumName = lineValue.replace(' ','_').replace('æ','ae').replace('ø','oe').replace('å','aa').replace('Æ','Ae').replace('Ø','Oe').replace('Å','Aa')
                     self.requirementMet += 1
                 elif lineKeyword == CmdFileKeywords.FORCE_UPDATE:
@@ -161,7 +163,7 @@ class CmdFile:
         outFile = open(filePath, 'w')
         outFile.write('------ User parameters ------\n\n')
         outFile.write(CmdFileKeywords.CATEGORY + cmdFileSep + self.category + '\n')
-        outFile.write(CmdFileKeywords.ALBUM_NAME + cmdFileSep + self.albumName + '\n')
+        outFile.write(CmdFileKeywords.ALBUM_NAME + cmdFileSep + self.albumNameOrig + '\n')
         outFile.write(CmdFileKeywords.FORCE_UPDATE + cmdFileSep + '0\n')
         
         outFile.write('\n------ Generated parameters ------\n\n')
@@ -343,7 +345,7 @@ for root, dirs, files in os.walk(folderSource):
             print('Found folder: ' + cmdFile.rootFolder)
             print('Pictures: ' + str(cmdFile.numFilesToCopy) + ', Videos: ' + str(len(cmdFile.videoList)))
     
-print('Folder search complete. Found ' + str(totalFileCounter) + ' new pictures and ' + totalVideoCounter + ' new videos.')
+print('Folder search complete. Found ' + str(totalFileCounter) + ' new pictures and ' + str(totalVideoCounter) + ' new videos.')
 
 input("Press Enter to continue...")
 
