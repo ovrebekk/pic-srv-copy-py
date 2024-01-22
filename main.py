@@ -57,6 +57,7 @@ class CmdFileKeywords(str, Enum):
 folderTarget = ""
 folderSource = ""
 forceUpdateAll = False
+includeVideos = False
 
 def makeEmptyConfigFile():
     print('Creating template config file. Enter configuration data and rerun script.')
@@ -298,13 +299,14 @@ def processCommandDirectory(cFile):
                             print(fileToCopy + ' copied in ' + str(int(elapsedTime*1000)) + ' ms, speed ' + str(int(speedMbps)) + ' Mbps')
                 
                 # After all the images have been moved, convert and move all video files
-                for vidFile in cFile.videoList:
-                    targetVid = copyToPath + os.path.splitext(os.path.split(vidFile)[1])[0] + '_r.mp4'
-                    if os.path.isfile(targetVid):
-                        print('Video already exists. Skipping: ' + targetVid)
-                    else:
-                        print('Converting video: ' + vidFile)
-                        subprocess.run(["ffmpeg", "-i",vidFile,"-movflags","use_metadata_tags","-map_metadata","0","-c:v", "libx264", "-preset","slow","-crf","20","-filter:v","scale=1920:-1","-c:a","copy",targetVid])
+                if includeVideos:
+                    for vidFile in cFile.videoList:
+                        targetVid = copyToPath + os.path.splitext(os.path.split(vidFile)[1])[0] + '_r.mp4'
+                        if os.path.isfile(targetVid):
+                            print('Video already exists. Skipping: ' + targetVid)
+                        else:
+                            print('Converting video: ' + vidFile)
+                            subprocess.run(["ffmpeg", "-i",vidFile,"-movflags","use_metadata_tags","-map_metadata","0","-c:v", "libx264", "-preset","slow","-crf","20","-filter:v","scale=1920:-1","-c:a","copy",targetVid])
 
             else:
                 for file in files:
@@ -346,6 +348,8 @@ for root, dirs, files in os.walk(folderSource):
             print('Pictures: ' + str(cmdFile.numFilesToCopy) + ', Videos: ' + str(len(cmdFile.videoList)))
     
 print('Folder search complete. Found ' + str(totalFileCounter) + ' new pictures and ' + str(totalVideoCounter) + ' new videos.')
+if not includeVideos:
+    print('Videos will be omitted')
 
 input("Press Enter to continue...")
 
