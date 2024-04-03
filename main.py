@@ -10,6 +10,7 @@ from os.path import getmtime
 configFileName = 'config.txt'
 keywordSource = 'source_folder'
 keywordTarget = 'target_folder'
+keywordHostMode = 'host_mode'
 
 # Command file definitions
 commandFileName = '_psc.txt'
@@ -56,6 +57,7 @@ class CmdFileKeywords(str, Enum):
 # Settings
 folderTarget = ""
 folderSource = ""
+hostMode = 0
 forceUpdateAll = False
 includeVideos = False
 
@@ -69,6 +71,7 @@ def makeEmptyConfigFile():
 def parseConfigFile():
     global folderSource
     global folderTarget
+    global hostMode
     cfgFile = open(configFileName, 'r')
     cfgLines = cfgFile.readlines()
     
@@ -81,6 +84,8 @@ def parseConfigFile():
             folderSource = lineValue
         elif lineKeyword == keywordTarget:
             folderTarget = lineValue
+        elif lineKeyword == keywordHostMode:
+            hostMode = int(lineValue)
 
 def verifyConfigParameters():
     if folderSource == "" or not os.path.isdir(folderSource):
@@ -186,7 +191,8 @@ class CmdFile:
         return dayString
 
     def updateNeeded(self, dtCmdFile, dtRootDir):
-        if dtCmdFile != self.dtFileTime or dtRootDir != self.dtDirTime:
+        dtFileTimeDiffSeconds = (dtCmdFile - self.dtFileTime).total_seconds() # Allow some seconds of difference, since network write operations are slow
+        if abs(dtFileTimeDiffSeconds) > 2 or dtRootDir != self.dtDirTime:
             #print('Update needed file time ' + dtCmdFile.strftime("%m/%d/%Y, %H:%M:%S") + ' ' + self.dtFileTime.strftime("%m/%d/%Y, %H:%M:%S"))
             #print('Dir time ' + dtRootDir.strftime("%m/%d/%Y, %H:%M:%S") + ' ' + self.dtDirTime.strftime("%m/%d/%Y, %H:%M:%S"))
             return True
@@ -348,6 +354,11 @@ for root, dirs, files in os.walk(folderSource):
             print('Pictures: ' + str(cmdFile.numFilesToCopy) + ', Videos: ' + str(len(cmdFile.videoList)))
     
 print('Folder search complete. Found ' + str(totalFileCounter) + ' new pictures and ' + str(totalVideoCounter) + ' new videos.')
+
+if hostMode == 1:
+    print('Host mode enabled. Skipping file copy operation')
+    exit()
+
 if not includeVideos:
     print('Videos will be omitted')
 

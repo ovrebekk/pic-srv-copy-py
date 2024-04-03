@@ -1,2 +1,3 @@
 source_folder: E:\bilder\fotografi
 target_folder: C:\bilder\srv_test
+host_mode: 0
