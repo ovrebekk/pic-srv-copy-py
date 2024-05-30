@@ -5,6 +5,9 @@ import subprocess
 from enum import Enum
 from datetime import datetime
 from os.path import getmtime
+import imageio.v3 as iio
+from PIL import Image, ExifTags
+import exifread
 
 # Config file definitions
 configFileName = 'config.txt'
@@ -48,6 +51,8 @@ class CmdFileKeywords(str, Enum):
     CATEGORY = 'category'
     ALBUM_NAME = 'album'
     FORCE_UPDATE = 'force_update'
+    INCLUDE_VIDEO = 'include_video'
+    RATING_TARGET = 'rating_target'
     CMD_FILE_TIME = 'file_time'
     ROOT_DIR_TIME = 'dir_time'
     CREATION_DATE = 'creation_date'
@@ -59,7 +64,7 @@ folderTarget = ""
 folderSource = ""
 hostMode = 0
 forceUpdateAll = False
-includeVideos = False
+includeVideos = True
 
 def makeEmptyConfigFile():
     print('Creating template config file. Enter configuration data and rerun script.')
@@ -98,6 +103,8 @@ def verifyConfigParameters():
 
 class CmdFile:
     forceUpdate = False
+    includeVideo = 0
+    ratingTarget = 0
     timeUpdateDir = ""
     timeUpdateCmdFile = ""
     timesModified = 0
@@ -109,7 +116,7 @@ class CmdFile:
     category = AlbumCategories.INVALID
     targetFolderOnLastCopy = ""
     rootFolder = ""
-    numFilesToCopy = 0
+    pictureList = []
     videoList = []
     requirementMet = 0
 
@@ -140,6 +147,12 @@ class CmdFile:
                         self.forceUpdate = True
                     else:
                         self.forceUpdate = False
+                # Whether or not to include videos
+                elif lineKeyword == CmdFileKeywords.INCLUDE_VIDEO:
+                    self.includeVideo = int(lineValue)
+                # The rating threshold required for including an image
+                elif lineKeyword == CmdFileKeywords.RATING_TARGET:
+                    self.ratingTarget = int(lineValue)
                 # File update time stamp when last updated
                 elif lineKeyword == CmdFileKeywords.CMD_FILE_TIME:
                     try:
@@ -171,6 +184,8 @@ class CmdFile:
         outFile.write(CmdFileKeywords.CATEGORY + cmdFileSep + self.category + '\n')
         outFile.write(CmdFileKeywords.ALBUM_NAME + cmdFileSep + self.albumNameOrig + '\n')
         outFile.write(CmdFileKeywords.FORCE_UPDATE + cmdFileSep + '0\n')
+        outFile.write(CmdFileKeywords.INCLUDE_VIDEO + cmdFileSep + str(self.includeVideo) + '\n')
+        outFile.write(CmdFileKeywords.RATING_TARGET + cmdFileSep + str(self.ratingTarget) + '\n')
         
         outFile.write('\n------ Generated parameters ------\n\n')
         outFile.write(CmdFileKeywords.CMD_FILE_TIME + cmdFileSep + datetime.now().strftime(dateStringFormat) + '\n')
@@ -211,8 +226,30 @@ class CmdFile:
 def processCommandFile(path):
     print(path)
 
+def getJpgFileRating(jpgFile):
+    IMAGE_RATING_TAG = "Image Rating"
+
+    # Open image with ExifMode to collect EXIF data
+    exif_tags = open(jpgFile, 'rb')
+    tags = exifread.process_file(exif_tags)
+
+    rating = 0
+    # Try to read the image rating tag first
+    if IMAGE_RATING_TAG in tags.keys():
+        rating = int(tags.get(IMAGE_RATING_TAG).values[0])
+    # If this tag can not be found, look for the rating in the xmp data
+    else:
+        with open(jpgFile, "rb") as fin:
+            img = fin.read()
+            imgAsString = str(img)
+            xmp_start = imgAsString.find('xmp:Rating=')
+            rating_str = imgAsString[xmp_start+12:xmp_start+13]
+            if rating_str.isdigit():
+                rating = int(rating_str)
+
+    return rating
+
 def checkCommandDirectory(path):
-    filesFound = 0
     cmdFilePath = path + os.sep + commandFileName
     dt = datetime.fromtimestamp(os.path.getmtime(path)) # Time stamp of the root folder
     dtf = datetime.fromtimestamp(os.path.getmtime(cmdFilePath)) # Time stamp of the config file
@@ -221,18 +258,19 @@ def checkCommandDirectory(path):
     cmdFile.videoList = []
     if cmdFile.updateNeeded(dtf.replace(microsecond=0), dt.replace(microsecond=0)) or forceUpdateAll:
         for root, dirs, files in os.walk(path):
-            for file in files:
-                fileExtension = os.path.splitext(file)[1].lower()
-                if fileExtension == ".mp4":
-                    cmdFile.videoList.append(root + os.sep + file)   
+            if cmdFile.includeVideo:
+                for file in files:
+                    fileExtension = os.path.splitext(file)[1].lower()
+                    if fileExtension == ".mp4":
+                        cmdFile.videoList.append(root + os.sep + file)   
             if root == path: # TODO: Add functionality to also go through subfolders
                 # Count all the JPG files
                 for file in files:
                     fileExtension = os.path.splitext(file)[1].lower()
-                    if fileExtension == ".jpg": 
-                        filesFound += 1
+                    if fileExtension == ".jpg":
+                        if cmdFile.ratingTarget == 0 or getJpgFileRating(root + os.sep + file) >= cmdFile.ratingTarget: 
+                            cmdFile.pictureList.append(root + os.sep + file)
         cmdFile.rootFolder = path
-        cmdFile.numFilesToCopy = filesFound
         return cmdFile
     else:
         return None
@@ -288,24 +326,23 @@ def processCommandDirectory(cFile):
                 else:
                     os.makedirs(copyToPath)
                 # Copy all the correct files to the selected target directory
-                for file in files:
+                for file in cFile.pictureList:
                     fileExtension = os.path.splitext(file)[1].lower()
-                    fileToCopy = root + os.sep + file
-                    if fileExtension == ".jpg":  
-                        if os.path.isfile(copyToPath + os.sep + file):
-                            print('File ' + fileToCopy + ' exists. Skipping..')
-                        else:
-                            fileSize = os.path.getsize(fileToCopy)
-                            startTime = time.time()
-                            shutil.copy2(fileToCopy, copyToPath)
-                            elapsedTime = time.time() - startTime
-                            speedMbps = 0
-                            if elapsedTime > 0:
-                                speedMbps = float(fileSize) * 8 / 1024 / 1024 / elapsedTime
-                            print(fileToCopy + ' copied in ' + str(int(elapsedTime*1000)) + ' ms, speed ' + str(int(speedMbps)) + ' Mbps')
-                
+                    fileToCopy = file
+                    if os.path.isfile(copyToPath + os.sep + file):
+                        print('File ' + fileToCopy + ' exists. Skipping..')
+                    else:
+                        fileSize = os.path.getsize(fileToCopy)
+                        startTime = time.time()
+                        shutil.copy2(fileToCopy, copyToPath)
+                        elapsedTime = time.time() - startTime
+                        speedMbps = 0
+                        if elapsedTime > 0:
+                            speedMbps = float(fileSize) * 8 / 1024 / 1024 / elapsedTime
+                        print(fileToCopy + ' copied in ' + str(int(elapsedTime*1000)) + ' ms, speed ' + str(int(speedMbps)) + ' Mbps')
+            
                 # After all the images have been moved, convert and move all video files
-                if includeVideos:
+                if includeVideos and cFile.includeVideo:
                     for vidFile in cFile.videoList:
                         targetVid = copyToPath + os.path.splitext(os.path.split(vidFile)[1])[0] + '_r.mp4'
                         if os.path.isfile(targetVid):
@@ -347,11 +384,11 @@ for root, dirs, files in os.walk(folderSource):
     if os.path.isfile(cmdPathName):
         cmdFile = checkCommandDirectory(root)
         if cmdFile != None:
-            totalFileCounter += cmdFile.numFilesToCopy
+            totalFileCounter += len(cmdFile.pictureList)
             totalVideoCounter += len(cmdFile.videoList)
             cmdFileToProcessList.append(cmdFile)
             print('Found folder: ' + cmdFile.rootFolder)
-            print('Pictures: ' + str(cmdFile.numFilesToCopy) + ', Videos: ' + str(len(cmdFile.videoList)))
+            print('Pictures: ' + str(len(cmdFile.pictureList)) + ', Videos: ' + str(len(cmdFile.videoList)))
     
 print('Folder search complete. Found ' + str(totalFileCounter) + ' new pictures and ' + str(totalVideoCounter) + ' new videos.')
 
