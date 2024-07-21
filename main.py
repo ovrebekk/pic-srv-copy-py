@@ -255,6 +255,7 @@ def checkCommandDirectory(path):
     dtf = datetime.fromtimestamp(os.path.getmtime(cmdFilePath)) # Time stamp of the config file
     cmdFile = CmdFile()
     cmdFile.readFromFile(cmdFilePath)
+    cmdFile.pictureList = []
     cmdFile.videoList = []
     if cmdFile.updateNeeded(dtf.replace(microsecond=0), dt.replace(microsecond=0)) or forceUpdateAll:
         for root, dirs, files in os.walk(path):
