@@ -380,25 +380,26 @@ cmdFileToProcessList = []
 
 # Traverse root directory, and list directories as dirs and files as files. Dummy run only
 for file_or_dir in os.listdir(folderSource):
-    print(file_or_dir)
-    if not os.path.isfile(file_or_dir):
+    file_path_lvl1 = folderSource + os.sep + file_or_dir
+    if not os.path.isfile(file_path_lvl1):
         # Level 1
-        cmdPathName = folderSource + os.sep + file_or_dir + os.sep + commandFileName
+        cmdPathName = file_path_lvl1 + os.sep + commandFileName
         if os.path.isfile(cmdPathName):
-            cmdFile = checkCommandDirectory(folderSource + os.sep + file_or_dir)
+            cmdFile = checkCommandDirectory(file_path_lvl1)
             if cmdFile != None:
                 totalFileCounter += len(cmdFile.pictureList)
                 totalVideoCounter += len(cmdFile.videoList)
                 cmdFileToProcessList.append(cmdFile)
                 print('Found folder: ' + cmdFile.rootFolder)
-                print('Pictures: ' + str(len(cmdFile.pictureList)) + ', Videos: ' + str(len(cmdFile.videoList)))
+                print('Pictures: ' + str(len(cmdFile.pictureList)) + ', Videos: ' + str(len(cmdFile.videoList)))      
         
         else:
             # Level 2 - We know we're in a folder that does not contain a CMD file, might be a superfolder
-            for file_or_dir_lvl2 in os.listdir(folderSource + os.sep + file_or_dir):
-                cmdPathName = folderSource + os.sep + file_or_dir + os.sep + file_or_dir_lvl2 + os.sep + commandFileName
-                if not os.path.isfile(file_or_dir_lvl2) and os.path.isfile(cmdPathName):
-                    cmdFile = checkCommandDirectory(folderSource + os.sep + file_or_dir + os.sep + file_or_dir_lvl2)
+            for file_or_dir_lvl2 in os.listdir(file_path_lvl1):
+                file_path_lvl2 = file_path_lvl1 + os.sep + file_or_dir_lvl2
+                cmdPathName = file_path_lvl2 + os.sep + commandFileName
+                if not os.path.isfile(file_path_lvl2) and os.path.isfile(cmdPathName):
+                    cmdFile = checkCommandDirectory(file_path_lvl2)
                     if cmdFile != None:
                         totalFileCounter += len(cmdFile.pictureList)
                         totalVideoCounter += len(cmdFile.videoList)
