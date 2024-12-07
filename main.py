@@ -207,7 +207,7 @@ class CmdFile:
 
     def updateNeeded(self, dtCmdFile, dtRootDir):
         dtFileTimeDiffSeconds = (dtCmdFile - self.dtFileTime).total_seconds() # Allow some seconds of difference, since network write operations are slow
-        if abs(dtFileTimeDiffSeconds) > 2 or dtRootDir != self.dtDirTime:
+        if abs(dtFileTimeDiffSeconds) > 60 or dtRootDir != self.dtDirTime:
             #print('Update needed file time ' + dtCmdFile.strftime("%m/%d/%Y, %H:%M:%S") + ' ' + self.dtFileTime.strftime("%m/%d/%Y, %H:%M:%S"))
             #print('Dir time ' + dtRootDir.strftime("%m/%d/%Y, %H:%M:%S") + ' ' + self.dtDirTime.strftime("%m/%d/%Y, %H:%M:%S"))
             return True
@@ -330,7 +330,7 @@ def processCommandDirectory(cFile):
                 for file in cFile.pictureList:
                     fileExtension = os.path.splitext(file)[1].lower()
                     fileToCopy = file
-                    if os.path.isfile(copyToPath + os.sep + file):
+                    if os.path.isfile(copyToPath + os.sep + os.path.basename(file)):
                         print('File ' + fileToCopy + ' exists. Skipping..')
                     else:
                         fileSize = os.path.getsize(fileToCopy)
